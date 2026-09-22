@@ -1,1 +1,246 @@
 @import "tailwindcss";
+
+:root {
+  --background: #f5f1e8;
+  --foreground: #24302f;
+
+  --surface: #fffdf8;
+  --surface-soft: #faf7f0;
+
+  --border: #e3ded2;
+
+  --text-primary: #24302f;
+  --text-secondary: #6f7975;
+  --text-muted: #929995;
+
+  --primary: #6f8f80;
+  --primary-dark: #557566;
+  --primary-soft: #e5ede8;
+
+  --gold: #c9a96e;
+  --gold-soft: #f4ead7;
+
+  --danger: #a96767;
+  --danger-soft: #f5e6e6;
+
+  --success: #668875;
+  --success-soft: #e5efe8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  outline: none;
+}
+
+::selection {
+  background: #dbe7df;
+  color: #24302f;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #eee9df;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c4cec8;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #aabbb1;
+}
+
+/* --------------------------------
+   BookNest Utility Classes
+-------------------------------- */
+
+.bn-page {
+  background: var(--background);
+  color: var(--text-primary);
+}
+
+.bn-surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.bn-surface-soft {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+}
+
+.bn-border {
+  border-color: var(--border);
+}
+
+.bn-text {
+  color: var(--text-primary);
+}
+
+.bn-text-secondary {
+  color: var(--text-secondary);
+}
+
+.bn-text-muted {
+  color: var(--text-muted);
+}
+
+.bn-primary {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.bn-primary:hover {
+  background: var(--primary-dark);
+}
+
+.bn-primary-soft {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.bn-gold-soft {
+  background: var(--gold-soft);
+  color: #8b6d3d;
+}
+
+/* --------------------------------
+   Soft Shadows
+-------------------------------- */
+
+.bn-shadow {
+  box-shadow:
+    0 8px 30px rgba(36, 48, 47, 0.06),
+    0 2px 8px rgba(36, 48, 47, 0.03);
+}
+
+.bn-shadow-sm {
+  box-shadow: 0 3px 12px rgba(36, 48, 47, 0.05);
+}
+
+/* --------------------------------
+   Smooth UI
+-------------------------------- */
+
+.bn-transition {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.bn-hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.bn-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow:
+    0 8px 30px rgba(36, 48, 47, 0.05),
+    0 2px 8px rgba(36, 48, 47, 0.025);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.bn-card:hover {
+  transform: translateY(-2px);
+  border-color: #d2dacf;
+  box-shadow:
+    0 12px 34px rgba(36, 48, 47, 0.08),
+    0 3px 10px rgba(36, 48, 47, 0.03);
+}
+
+/* --------------------------------
+   Forms
+-------------------------------- */
+
+.bn-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: 12px;
+  padding: 11px 14px;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.bn-input::placeholder {
+  color: #a3aaa6;
+}
+
+.bn-input:focus {
+  border-color: #9bb4a6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(111, 143, 128, 0.12);
+}
+
+/* --------------------------------
+   Page Animation
+-------------------------------- */
+
+@keyframes bn-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bn-fade-up {
+  animation: bn-fade-up 450ms ease-out both;
+}

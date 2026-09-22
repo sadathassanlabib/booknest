@@ -1,24 +1,89 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { siteConfig } from "@/lib/siteConfig";
 
 const Navbar = () => {
   const pathname = usePathname();
-  const { data: session, status } = useSession();
+
+  const {
+    data: session,
+    status,
+  } = useSession();
+
+  const [profile, setProfile] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const isLoading = status === "loading";
-  const user = session?.user;
+  const sessionUser = session?.user;
 
-  const role = user?.role;
-  const accountStatus = user?.status;
-  const isAuthenticated = !!user;
+  /*
+   * =========================================
+   * LOAD FRESH USER PROFILE
+   * =========================================
+   */
 
-  // ---------------------------------------
-  // Active navigation
-  // ---------------------------------------
+  useEffect(() => {
+    if (!sessionUser?.id) {
+      setProfile(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      try {
+        const response = await fetch("/api/profile", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        if (!cancelled && data?.user) {
+          setProfile(data.user);
+        }
+      } catch (error) {
+        console.error("NAVBAR_PROFILE_ERROR:", error);
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUser?.id]);
+
+  /*
+   * =========================================
+   * USER
+   * =========================================
+   */
+
+  const user = {
+    ...sessionUser,
+    ...profile,
+  };
+
+  const isAuthenticated = !!sessionUser;
+
+  const role = user?.role || "user";
+  const accountStatus = user?.status || "pending";
+
+  /*
+   * =========================================
+   * ACTIVE LINK
+   * =========================================
+   */
+
   const isActive = (href) => {
     if (href === "/") {
       return pathname === "/";
@@ -32,18 +97,12 @@ const Navbar = () => {
     );
   };
 
-  // ---------------------------------------
-  // Sign out
-  // ---------------------------------------
-  const handleSignOut = async () => {
-    await signOut({
-      callbackUrl: "/",
-    });
-  };
+  /*
+   * =========================================
+   * ROLE NAVIGATION
+   * =========================================
+   */
 
-  // ---------------------------------------
-  // Role based navigation
-  // ---------------------------------------
   const getRoleLinks = () => {
     if (!isAuthenticated) {
       return [];
@@ -71,28 +130,22 @@ const Navbar = () => {
       ];
     }
 
-    if (role === "user") {
-      return [
-        {
-          href: "/profile",
-          label: "My Account",
-        },
-      ];
-    }
-
-    return [];
+    return [
+      {
+        href: "/profile",
+        label: "My Account",
+      },
+    ];
   };
 
   const roleLinks = getRoleLinks();
 
-  // ---------------------------------------
-  // Public navigation
-  // ---------------------------------------
-  const publicNavigation = siteConfig.navigation;
+  /*
+   * =========================================
+   * PROFILE LINK
+   * =========================================
+   */
 
-  // ---------------------------------------
-  // Profile destination
-  // ---------------------------------------
   const profileHref =
     role === "superadmin"
       ? "/superadmin"
@@ -100,9 +153,12 @@ const Navbar = () => {
       ? "/moderator"
       : "/profile";
 
-  // ---------------------------------------
-  // Role badge
-  // ---------------------------------------
+  /*
+   * =========================================
+   * ROLE BADGE
+   * =========================================
+   */
+
   const getRoleBadge = () => {
     if (role === "superadmin") {
       return "Admin";
@@ -115,15 +171,43 @@ const Navbar = () => {
     return "Member";
   };
 
+  /*
+   * =========================================
+   * SIGN OUT
+   * =========================================
+   */
+
+  const handleSignOut = async () => {
+    setProfile(null);
+    setMobileOpen(false);
+
+    await signOut({
+      callbackUrl: "/",
+    });
+  };
+
+  /*
+   * =========================================
+   * CLOSE MOBILE MENU
+   * =========================================
+   */
+
+  const handleNavigation = () => {
+    setMobileOpen(false);
+  };
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#101D23]/90 backdrop-blur-xl">
+
       <div className="mx-auto flex h-[74px] w-[92%] max-w-[1180px] items-center justify-between gap-5">
 
-        {/* =========================================
+        {/* =====================================
             LOGO
-        ========================================= */}
+        ===================================== */}
+
         <Link
           href="/"
+          onClick={handleNavigation}
           className="group flex items-center gap-3"
         >
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#EDE6D6] text-xs font-black text-[#101D23] transition duration-300 group-hover:scale-105">
@@ -141,13 +225,13 @@ const Navbar = () => {
           </div>
         </Link>
 
-        {/* =========================================
+        {/* =====================================
             DESKTOP NAVIGATION
-        ========================================= */}
+        ===================================== */}
+
         <nav className="hidden items-center gap-7 md:flex">
 
-          {/* Public Links */}
-          {publicNavigation.map((item) => (
+          {siteConfig.navigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -165,7 +249,6 @@ const Navbar = () => {
             </Link>
           ))}
 
-          {/* Role Links */}
           {!isLoading &&
             roleLinks.map((item) => (
               <Link
@@ -186,17 +269,20 @@ const Navbar = () => {
             ))}
         </nav>
 
-        {/* =========================================
-            DESKTOP AUTH AREA
-        ========================================= */}
+        {/* =====================================
+            DESKTOP AUTH
+        ===================================== */}
+
         <div className="hidden items-center gap-2 md:flex">
 
           {/* Loading */}
+
           {isLoading && (
             <div className="h-9 w-28 animate-pulse rounded-lg bg-white/10" />
           )}
 
           {/* Guest */}
+
           {!isLoading && !isAuthenticated && (
             <>
               <Link
@@ -215,16 +301,17 @@ const Navbar = () => {
             </>
           )}
 
-          {/* Logged In */}
+          {/* Authenticated */}
+
           {!isLoading && isAuthenticated && (
             <>
-              {/* Profile Name */}
+
               <Link
                 href={profileHref}
                 className="group mr-2 hidden text-right lg:block"
               >
                 <p className="text-[11px] font-bold text-[#EDE6D6] transition-colors group-hover:text-[#8BAF9D]">
-                  {user.name}
+                  {user?.name || "BookNest User"}
                 </p>
 
                 <p className="text-[9px] font-semibold capitalize text-[#899692]">
@@ -232,7 +319,6 @@ const Navbar = () => {
                 </p>
               </Link>
 
-              {/* Role Badge */}
               <div
                 className={`rounded-lg border px-3 py-2 text-[10px] font-bold ${
                   role === "superadmin"
@@ -245,7 +331,6 @@ const Navbar = () => {
                 {getRoleBadge()}
               </div>
 
-              {/* Sign Out */}
               <button
                 type="button"
                 onClick={handleSignOut}
@@ -253,45 +338,46 @@ const Navbar = () => {
               >
                 Sign Out
               </button>
+
             </>
           )}
         </div>
 
-        {/* =========================================
-            MOBILE MENU
-        ========================================= */}
-        <details className="relative md:hidden">
+        {/* =====================================
+            MOBILE BUTTON
+        ===================================== */}
 
-          <summary className="grid h-10 w-10 cursor-pointer list-none place-items-center rounded-lg border border-white/10 bg-white/5 text-[#EDE6D6] transition hover:bg-white/10">
-            ☰
-          </summary>
+        <button
+          type="button"
+          onClick={() => setMobileOpen((prev) => !prev)}
+          className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-[#EDE6D6] transition hover:bg-white/10 md:hidden"
+          aria-label="Toggle navigation"
+        >
+          {mobileOpen ? "×" : "☰"}
+        </button>
+      </div>
 
-          <div className="absolute right-0 top-12 w-64 rounded-2xl border border-white/10 bg-[#17262D]/95 p-3 shadow-2xl backdrop-blur-xl">
+      {/* =======================================
+          MOBILE MENU
+      ======================================= */}
 
-            {/* Public Navigation */}
-            {publicNavigation.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`block rounded-lg px-3 py-2.5 text-xs font-semibold transition ${
-                  isActive(item.href)
-                    ? "bg-[#8BAF9D]/10 text-[#B9D0C4]"
-                    : "text-[#AEB8B4] hover:bg-white/5 hover:text-[#EDE6D6]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+      {mobileOpen && (
+        <div className="border-t border-white/10 bg-[#17262D]/98 px-[4%] py-4 shadow-2xl backdrop-blur-xl md:hidden">
 
-            {/* Role Navigation */}
-            {!isLoading &&
-              roleLinks.map((item) => (
+          <div className="mx-auto max-w-[1180px]">
+
+            {/* Public */}
+
+            <div className="space-y-1">
+
+              {siteConfig.navigation.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`mt-1 block rounded-lg px-3 py-2.5 text-xs font-semibold transition ${
+                  onClick={handleNavigation}
+                  className={`block rounded-lg px-3 py-3 text-xs font-semibold transition ${
                     isActive(item.href)
-                      ? "bg-[#8BAF9D]/15 text-[#B9D0C4]"
+                      ? "bg-[#8BAF9D]/10 text-[#B9D0C4]"
                       : "text-[#AEB8B4] hover:bg-white/5 hover:text-[#EDE6D6]"
                   }`}
                 >
@@ -299,41 +385,61 @@ const Navbar = () => {
                 </Link>
               ))}
 
-            <div className="my-2 border-t border-white/10" />
+              {!isLoading &&
+                roleLinks.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={handleNavigation}
+                    className={`block rounded-lg px-3 py-3 text-xs font-semibold transition ${
+                      isActive(item.href)
+                        ? "bg-[#8BAF9D]/15 text-[#B9D0C4]"
+                        : "text-[#AEB8B4] hover:bg-white/5 hover:text-[#EDE6D6]"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+            </div>
 
-            {/* =====================================
-                MOBILE GUEST
-            ===================================== */}
+            <div className="my-3 border-t border-white/10" />
+
+            {/* Mobile Guest */}
+
             {!isLoading && !isAuthenticated && (
-              <>
+              <div className="space-y-2">
+
                 <Link
                   href="/login"
-                  className="block rounded-lg px-3 py-2.5 text-xs font-semibold text-[#AEB8B4] transition hover:bg-white/5 hover:text-[#EDE6D6]"
+                  onClick={handleNavigation}
+                  className="block rounded-lg px-3 py-3 text-xs font-semibold text-[#AEB8B4] transition hover:bg-white/5 hover:text-[#EDE6D6]"
                 >
                   Sign In
                 </Link>
 
                 <Link
                   href="/signup"
-                  className="mt-1 block rounded-lg bg-[#EDE6D6] px-3 py-2.5 text-center text-xs font-extrabold text-[#101D23] transition hover:bg-white"
+                  onClick={handleNavigation}
+                  className="block rounded-lg bg-[#EDE6D6] px-3 py-3 text-center text-xs font-extrabold text-[#101D23] transition hover:bg-white"
                 >
                   Join BookNest
                 </Link>
-              </>
+
+              </div>
             )}
 
-            {/* =====================================
-                MOBILE LOGGED IN
-            ===================================== */}
+            {/* Mobile Authenticated */}
+
             {!isLoading && isAuthenticated && (
-              <>
-                {/* Profile */}
+              <div>
+
                 <Link
                   href={profileHref}
-                  className="mb-2 block rounded-xl border border-white/10 bg-white/5 p-3 transition hover:bg-white/10"
+                  onClick={handleNavigation}
+                  className="mb-2 block rounded-xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
                 >
                   <p className="text-xs font-bold text-[#EDE6D6]">
-                    {user.name}
+                    {user?.name || "BookNest User"}
                   </p>
 
                   <p className="mt-1 text-[10px] font-semibold capitalize text-[#899692]">
@@ -341,19 +447,19 @@ const Navbar = () => {
                   </p>
                 </Link>
 
-                {/* Sign Out */}
                 <button
                   type="button"
                   onClick={handleSignOut}
-                  className="w-full rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-red-400 transition hover:bg-red-500/10"
+                  className="w-full rounded-lg px-3 py-3 text-left text-xs font-semibold text-red-400 transition hover:bg-red-500/10"
                 >
                   Sign Out
                 </button>
-              </>
+
+              </div>
             )}
           </div>
-        </details>
-      </div>
+        </div>
+      )}
     </header>
   );
 };
