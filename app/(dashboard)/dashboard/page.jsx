@@ -2,701 +2,828 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 
-const statItems = [
-  {
-    key: "books",
-    label: "My Books",
-    href: "/book/my-books",
-    description: "Books you have added",
-    icon: "▣",
-  },
-  {
-    key: "loans",
-    label: "Active Loans",
-    href: "/my-loans",
-    description: "Books currently with you",
-    icon: "↗",
-  },
-  {
-    key: "requests",
-    label: "Pending Requests",
-    href: "/my-requests",
-    description: "Requests waiting for action",
-    icon: "◌",
-  },
-  {
-    key: "fine",
-    label: "Unpaid Fine",
-    href: "/my-loans",
-    description: "Outstanding payment",
-    icon: "৳",
-  },
-];
+function StatCard({
+label,
+value,
+icon,
+description,
+href,
+}) {
+const content = ( <div className="group h-full rounded-2xl border border-white/[0.07] bg-[#0d2028] p-5 shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-white/[0.13] hover:bg-[#102630]"> <div className="flex items-start justify-between gap-4">
 
-const quickActions = [
-  {
-    title: "Browse Catalog",
-    description: "Find books available to borrow.",
-    href: "/catalog",
-    icon: "⌕",
-  },
-  {
-    title: "Add New Book",
-    description: "Share your book with the community.",
-    href: "/book/add",
-    icon: "+",
-  },
-  {
-    title: "My Loans",
-    description: "Check your active and completed loans.",
-    href: "/my-loans",
-    icon: "↗",
-  },
-  {
-    title: "My Requests",
-    description: "Track your borrow requests.",
-    href: "/my-requests",
-    icon: "◌",
-  },
-  {
-    title: "Messages",
-    description: "Chat with other BookNest users.",
-    href: "/messages",
-    icon: "✉",
-  },
-  {
-    title: "Notifications",
-    description: "See your latest updates.",
-    href: "/notifications",
-    icon: "◉",
-  },
-  {
-    title: "Report Issue",
-    description: "Report a problem or concern.",
-    href: "/report",
-    icon: "!",
-  },
-  {
-    title: "Settings",
-    description: "Manage your account preferences.",
-    href: "/settings",
-    icon: "⚙",
-  },
-];
+```
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </p>
 
-const mobileNav = [
-  ["Dashboard", "/dashboard"],
-  ["Catalog", "/catalog"],
-  ["My Books", "/book/my-books"],
-  ["Loans", "/my-loans"],
-  ["Requests", "/my-requests"],
-  ["Messages", "/messages"],
-  ["Notifications", "/notifications"],
-  ["Settings", "/settings"],
-];
+      <p className="mt-3 text-3xl font-black tracking-tight text-white">
+        {value}
+      </p>
+
+      <p className="mt-2 text-xs leading-5 text-slate-500">
+        {description}
+      </p>
+    </div>
+
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/5 bg-[#102a34] text-xl">
+      {icon}
+    </div>
+
+  </div>
+</div>
+
+
+);
+
+if (!href) return content;
+
+return ( <Link href={href} className="block h-full">
+{content} </Link>
+);
+}
 
 function formatDate(date) {
-  if (!date) return "";
+if (!date) return "N/A";
 
-  try {
-    return new Date(date).toLocaleDateString("en-BD", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
+try {
+return new Date(date).toLocaleDateString("en-GB", {
+day: "2-digit",
+month: "short",
+year: "numeric",
+});
+} catch {
+return "N/A";
+}
+}
+
+function ActivityItem({
+icon,
+title,
+description,
+date,
+type,
+}) {
+const typeStyles = {
+success:
+"border-emerald-400/10 bg-emerald-500/10 text-emerald-300",
+warning:
+"border-orange-400/10 bg-orange-500/10 text-orange-300",
+info:
+"border-blue-400/10 bg-blue-500/10 text-blue-300",
+danger:
+"border-red-400/10 bg-red-500/10 text-red-300",
+};
+
+return ( <div className="flex gap-4 border-b border-white/[0.05] py-4 last:border-b-0">
+
+
+  <div
+    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-base ${
+      typeStyles[type] || typeStyles.info
+    }`}
+  >
+    {icon}
+  </div>
+
+  <div className="min-w-0 flex-1">
+
+    <p className="text-sm font-bold text-slate-200">
+      {title}
+    </p>
+
+    <p className="mt-1 text-xs leading-5 text-slate-500">
+      {description}
+    </p>
+
+    <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-700">
+      {formatDate(date)}
+    </p>
+
+  </div>
+</div>
+
+
+);
+}
+
+export default function DashboardPage() {
+const [loading, setLoading] = useState(true);
+
+const [dashboard, setDashboard] = useState({
+user: null,
+loans: [],
+notifications: [],
+activities: [],
+stats: {
+totalLoans: 0,
+activeLoans: 0,
+completedLoans: 0,
+unpaidFine: 0,
+},
+});
+
+const [error, setError] = useState("");
+
+useEffect(() => {
+async function loadDashboard() {
+try {
+setLoading(true);
+setError("");
+
+
+    const response = await fetch("/api/loans", {
+      cache: "no-store",
     });
-  } catch {
-    return "";
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.message || "Failed to load dashboard."
+      );
+    }
+
+    const loans = data.loans || [];
+
+    const activeLoans = loans.filter(
+      (loan) => loan.status === "active"
+    );
+
+    const completedLoans = loans.filter(
+      (loan) => loan.status !== "active"
+    );
+
+    const unpaidFine = loans.reduce(
+      (sum, loan) => {
+        if (loan.paymentStatus === "paid") {
+          return sum;
+        }
+
+        return (
+          sum +
+          Number(loan.totalFine || 0)
+        );
+      },
+      0
+    );
+
+    const activities = [];
+
+    loans.slice(0, 5).forEach((loan) => {
+
+      if (loan.status === "active") {
+        activities.push({
+          icon: "📚",
+          title: `Borrowed ${
+            loan.bookTitle || "a book"
+          }`,
+          description: `Due date: ${formatDate(
+            loan.dueDate
+          )}`,
+          date: loan.startDate,
+          type: "info",
+        });
+      }
+
+      if (loan.status === "returned") {
+        activities.push({
+          icon: "✓",
+          title: `Returned ${
+            loan.bookTitle || "a book"
+          }`,
+          description:
+            "Book return has been completed.",
+          date: loan.returnedAt,
+          type: "success",
+        });
+      }
+
+      if (loan.status === "damaged") {
+        activities.push({
+          icon: "⚠",
+          title: "Damaged book reported",
+          description:
+            loan.bookTitle ||
+            "A borrowed book was marked damaged.",
+          date: loan.returnedAt,
+          type: "warning",
+        });
+      }
+
+      if (loan.status === "lost") {
+        activities.push({
+          icon: "!",
+          title: "Lost book reported",
+          description:
+            loan.bookTitle ||
+            "A borrowed book was marked lost.",
+          date: loan.returnedAt,
+          type: "danger",
+        });
+      }
+    });
+
+    setDashboard({
+      user: data.user || null,
+      loans,
+      notifications:
+        data.notifications || [],
+      activities,
+      stats: {
+        totalLoans: loans.length,
+        activeLoans: activeLoans.length,
+        completedLoans:
+          completedLoans.length,
+        unpaidFine,
+      },
+    });
+
+  } catch (err) {
+    console.error(
+      "DASHBOARD_ERROR:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to load your dashboard."
+    );
+  } finally {
+    setLoading(false);
   }
 }
 
-export default function UserDashboard() {
-  const { data: session, status: sessionStatus } = useSession();
+loadDashboard();
 
-  const [books, setBooks] = useState([]);
-  const [loans, setLoans] = useState([]);
-  const [requests, setRequests] = useState([]);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+}, []);
 
-  async function loadDashboard() {
-    try {
-      setLoading(true);
-      setError("");
+if (loading) {
+return ( <main className="min-h-screen bg-[#07141a] px-4 py-6 text-white sm:px-6 lg:px-8"> <div className="mx-auto max-w-7xl animate-pulse">
 
-      const [booksResponse, loansResponse, requestsResponse] =
-        await Promise.all([
-          fetch("/api/books", {
-            cache: "no-store",
-          }),
-          fetch("/api/loans", {
-            cache: "no-store",
-          }),
-          fetch("/api/requests", {
-            cache: "no-store",
-          }),
-        ]);
 
-      const booksData = booksResponse.ok
-        ? await booksResponse.json()
-        : [];
+      <div className="h-8 w-64 rounded-lg bg-[#10242d]" />
 
-      const loansData = loansResponse.ok
-        ? await loansResponse.json()
-        : [];
+      <div className="mt-3 h-4 w-96 max-w-full rounded bg-[#10242d]" />
 
-      const requestsData = requestsResponse.ok
-        ? await requestsResponse.json()
-        : [];
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[1, 2, 3, 4].map((item) => (
+          <div
+            key={item}
+            className="h-36 rounded-2xl border border-white/5 bg-[#0d2028]"
+          />
+        ))}
+      </div>
 
-      setBooks(Array.isArray(booksData) ? booksData : []);
+      <div className="mt-8 grid gap-5 xl:grid-cols-3">
 
-      setLoans(Array.isArray(loansData) ? loansData : []);
+        <div className="h-96 rounded-2xl bg-[#0d2028] xl:col-span-2" />
 
-      setRequests(
-        Array.isArray(requestsData)
-          ? requestsData
-          : []
-      );
-    } catch (err) {
-      console.error("DASHBOARD_LOAD_ERROR:", err);
-      setError("Unable to load dashboard data.");
-    } finally {
-      setLoading(false);
-    }
-  }
+        <div className="h-96 rounded-2xl bg-[#0d2028]" />
 
-  useEffect(() => {
-    if (sessionStatus === "authenticated") {
-      loadDashboard();
-    }
+      </div>
+    </div>
+  </main>
+);
 
-    if (sessionStatus === "unauthenticated") {
-      setLoading(false);
-    }
-  }, [sessionStatus]);
 
-  const activeLoans = loans.filter(
-    (loan) => loan.status === "active"
-  );
+}
 
-  const pendingRequests = requests.filter(
-    (request) => request.status === "pending"
-  );
+if (error) {
+return ( <main className="min-h-screen bg-[#07141a] px-4 py-10 text-white"> <div className="mx-auto max-w-xl rounded-3xl border border-red-400/20 bg-[#0d2028] p-8 text-center">
 
-  const unpaidFine = loans.reduce((total, loan) => {
-    if (
-      loan.paymentStatus === "paid" ||
-      loan.paymentStatus === "not_required"
-    ) {
-      return total;
-    }
 
-    return total + Number(loan.totalFine || 0);
-  }, 0);
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-xl font-black text-red-300">
+        !
+      </div>
 
-  const stats = {
-    books: books.length,
-    loans: activeLoans.length,
-    requests: pendingRequests.length,
-    fine: unpaidFine,
-  };
+      <h1 className="mt-5 text-xl font-black">
+        Dashboard unavailable
+      </h1>
 
-  if (sessionStatus === "loading" || loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#07141a] px-4 text-[#f4efe3]">
-        <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0d2028] px-6 py-7 text-center shadow-2xl">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-[#e9e1cf]" />
+      <p className="mt-2 text-sm leading-6 text-slate-500">
+        {error}
+      </p>
 
-          <p className="mt-4 text-sm font-bold text-slate-300">
-            Loading your dashboard...
-          </p>
-        </div>
-      </main>
-    );
-  }
+      <button
+        type="button"
+        onClick={() =>
+          window.location.reload()
+        }
+        className="mt-6 rounded-xl bg-[#e9e1cf] px-6 py-3 text-sm font-black text-[#07141a] transition hover:bg-white"
+      >
+        Try Again
+      </button>
 
-  if (!session?.user) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#07141a] px-4 py-10 text-[#f4efe3]">
-        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0d2028] p-6 text-center sm:p-8">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-            BookNest
-          </p>
+    </div>
+  </main>
+);
 
-          <h1 className="mt-3 text-2xl font-black sm:text-3xl">
-            Sign in required
+
+}
+
+const {
+totalLoans,
+activeLoans,
+completedLoans,
+unpaidFine,
+} = dashboard.stats;
+
+const activeLoanItems =
+dashboard.loans.filter(
+(loan) => loan.status === "active"
+);
+
+return ( <main className="min-h-screen bg-[#07141a] text-slate-100">
+
+
+  <div className="pointer-events-none fixed inset-0 overflow-hidden">
+
+    <div className="absolute left-[-220px] top-[-220px] h-[500px] w-[500px] rounded-full bg-blue-500/[0.04] blur-[130px]" />
+
+    <div className="absolute right-[-200px] top-[30%] h-[450px] w-[450px] rounded-full bg-cyan-500/[0.035] blur-[130px]" />
+
+    <div className="absolute bottom-[-250px] left-[30%] h-[500px] w-[500px] rounded-full bg-indigo-500/[0.025] blur-[140px]" />
+
+  </div>
+
+  <div className="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+
+    {/* HEADER */}
+    <section className="rounded-3xl border border-white/[0.07] bg-[#0a1b22]/80 p-5 shadow-2xl shadow-black/10 backdrop-blur-xl sm:p-7">
+
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+
+        <div>
+
+          <div className="mb-2 flex items-center gap-2">
+
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+
+            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-slate-500">
+              Member Dashboard
+            </span>
+
+          </div>
+
+          <h1 className="text-2xl font-black tracking-tight text-[#f1eee5] sm:text-3xl lg:text-4xl">
+            Welcome back
+            {dashboard.user?.name
+              ? `, ${dashboard.user.name}`
+              : ""}
           </h1>
 
-          <p className="mt-3 text-sm leading-6 text-slate-400">
-            Please sign in to access your BookNest dashboard.
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            Manage your books, loans,
+            payments, notifications and
+            account activity from one place.
           </p>
 
-          <Link
-            href="/login"
-            className="mt-7 inline-flex w-full items-center justify-center rounded-xl bg-[#e9e1cf] px-6 py-3.5 text-sm font-black text-[#07141a] transition hover:bg-white sm:w-auto"
-          >
-            Sign In
-          </Link>
         </div>
-      </main>
-    );
-  }
 
-  return (
-    <main className="min-h-screen overflow-x-hidden bg-[#07141a] text-[#f4efe3]">
-      {/* Background glow */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute left-[-100px] top-[-100px] h-64 w-64 rounded-full bg-blue-500/5 blur-3xl sm:h-80 sm:w-80" />
+        <div className="grid grid-cols-2 gap-3 sm:flex">
 
-        <div className="absolute bottom-[-120px] right-[-100px] h-80 w-80 rounded-full bg-cyan-400/5 blur-3xl sm:h-96 sm:w-96" />
+          <Link
+            href="/catalog"
+            className="rounded-xl bg-[#e9e1cf] px-5 py-3 text-center text-xs font-black text-[#07141a] transition hover:bg-white"
+          >
+            Browse Books
+          </Link>
+
+          <Link
+            href="/dashboard/my-loans"
+            className="rounded-xl border border-white/10 bg-[#10242d] px-5 py-3 text-center text-xs font-bold text-slate-200 transition hover:bg-[#142d37]"
+          >
+            My Loans
+          </Link>
+
+        </div>
+
       </div>
+    </section>
 
-      <div className="relative flex min-h-screen">
-        {/* Desktop Sidebar */}
-        <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-[#081820] xl:block">
-          <div className="sticky top-0 flex h-screen flex-col p-5">
+    {/* STATS */}
+    <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+      <StatCard
+        label="Total Loans"
+        value={totalLoans}
+        icon="📚"
+        description="All books you have borrowed."
+        href="/dashboard/my-loans"
+      />
+
+      <StatCard
+        label="Active Loans"
+        value={activeLoans}
+        icon="⏳"
+        description="Books currently with you."
+        href="/dashboard/my-loans"
+      />
+
+      <StatCard
+        label="Completed"
+        value={completedLoans}
+        icon="✓"
+        description="Returned or completed loans."
+        href="/dashboard/my-loans"
+      />
+
+      <StatCard
+        label="Unpaid Fine"
+        value={`৳${unpaidFine}`}
+        icon="৳"
+        description={
+          unpaidFine > 0
+            ? "Payment may be required."
+            : "You have no unpaid fine."
+        }
+        href="/dashboard/my-loans"
+      />
+
+    </section>
+
+    {/* MAIN GRID */}
+    <section className="mt-6 grid gap-5 xl:grid-cols-3">
+
+      {/* ACTIVE LOANS */}
+      <div className="rounded-3xl border border-white/[0.07] bg-[#0d2028] p-5 shadow-xl shadow-black/10 sm:p-6 xl:col-span-2">
+
+        <div className="flex items-start justify-between gap-4">
+
+          <div>
+
+            <h2 className="text-xl font-black text-[#f1eee5]">
+              Active Loans
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-600">
+              Your currently borrowed books.
+            </p>
+
+          </div>
+
+          <Link
+            href="/dashboard/my-loans"
+            className="rounded-lg border border-white/5 bg-[#10242d] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 transition hover:bg-[#142d37] hover:text-white"
+          >
+            View All
+          </Link>
+
+        </div>
+
+        {activeLoanItems.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-[#091a21] px-5 py-12 text-center">
+
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/5 bg-[#10242d] text-2xl">
+              📖
+            </div>
+
+            <h3 className="mt-4 text-sm font-black text-slate-200">
+              No active loans
+            </h3>
+
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-slate-600">
+              You are not currently borrowing
+              any books.
+            </p>
+
             <Link
-              href="/"
-              className="border-b border-white/10 px-3 pb-5"
+              href="/catalog"
+              className="mt-5 inline-flex rounded-xl bg-[#e9e1cf] px-5 py-2.5 text-xs font-black text-[#07141a] transition hover:bg-white"
             >
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">
-                Community Library
-              </p>
-
-              <p className="mt-2 text-2xl font-black tracking-tight">
-                Book
-                <span className="text-blue-300">
-                  Nest
-                </span>
-              </p>
+              Explore Catalog
             </Link>
 
-            <nav className="mt-6 space-y-1">
-              <SidebarLink
-                href="/dashboard"
-                label="Dashboard"
-                icon="⌂"
-                active
-              />
-
-              <SidebarLink
-                href="/catalog"
-                label="Catalog"
-                icon="⌕"
-              />
-
-              <SidebarLink
-                href="/book/my-books"
-                label="My Books"
-                icon="▣"
-              />
-
-              <SidebarLink
-                href="/my-requests"
-                label="My Requests"
-                icon="◌"
-              />
-
-              <SidebarLink
-                href="/my-loans"
-                label="My Loans"
-                icon="↗"
-              />
-
-              <SidebarLink
-                href="/messages"
-                label="Messages"
-                icon="✉"
-              />
-
-              <SidebarLink
-                href="/notifications"
-                label="Notifications"
-                icon="◉"
-              />
-
-              <SidebarLink
-                href="/report"
-                label="Report Issue"
-                icon="!"
-              />
-            </nav>
-
-            <div className="mt-auto space-y-1 border-t border-white/10 pt-4">
-              <SidebarLink
-                href="/profile"
-                label="Profile"
-                icon="◎"
-              />
-
-              <SidebarLink
-                href="/settings"
-                label="Settings"
-                icon="⚙"
-              />
-            </div>
           </div>
-        </aside>
+        ) : (
+          <div className="mt-5 space-y-3">
 
-        {/* Main Content */}
-        <section className="min-w-0 flex-1">
-          {/* Header */}
-          <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07141a]/90 backdrop-blur-xl">
-            <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 sm:text-xs">
-                  User Dashboard
-                </p>
-
-                <h1 className="mt-1 truncate text-lg font-black sm:text-2xl">
-                  Welcome,{" "}
-                  {session.user.name ||
-                    "BookNest User"}
-                </h1>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                <Link
-                  href="/notifications"
-                  aria-label="Notifications"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-[#0d2028] text-sm text-slate-300 transition hover:border-white/20 hover:text-white sm:h-10 sm:w-10"
+            {activeLoanItems
+              .slice(0, 5)
+              .map((loan) => (
+                <div
+                  key={loan._id}
+                  className="rounded-2xl border border-white/[0.05] bg-[#091a21] p-4 transition hover:border-white/[0.1] hover:bg-[#0b1e26]"
                 >
-                  ◉
-                </Link>
 
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0d2028] p-1.5 pr-2.5 transition hover:border-white/20 sm:gap-3 sm:p-2 sm:pr-3"
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e9e1cf] text-xs font-black text-[#07141a] sm:h-9 sm:w-9">
-                    {(session.user.name || "U")
-                      .charAt(0)
-                      .toUpperCase()}
-                  </div>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-                  <div className="hidden min-w-0 sm:block">
-                    <p className="max-w-[120px] truncate text-xs font-bold text-white">
-                      {session.user.name ||
-                        "User"}
-                    </p>
+                    <div className="flex min-w-0 gap-3">
 
-                    <p className="text-[10px] text-slate-500">
-                      Member
-                    </p>
-                  </div>
-                </Link>
-              </div>
-            </div>
-          </header>
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/10 bg-blue-500/10 text-lg">
+                        📚
+                      </div>
 
-          <div className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-9">
-            {/* Mobile / Tablet Navigation */}
-            <div className="mb-6 overflow-x-auto xl:hidden">
-              <div className="flex min-w-max gap-2 pb-1">
-                {mobileNav.map(([label, href]) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={`rounded-xl border px-3.5 py-2.5 text-xs font-bold transition sm:px-4 ${
-                      href === "/dashboard"
-                        ? "border-blue-400/30 bg-blue-400/10 text-blue-200"
-                        : "border-white/10 bg-[#0d2028] text-slate-400 hover:border-white/20 hover:text-white"
-                    }`}
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="mb-6 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200 sm:px-5">
-                {error}
-              </div>
-            )}
-
-            {/* Stats */}
-            <section>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-                {statItems.map((item) => (
-                  <Link
-                    key={item.key}
-                    href={item.href}
-                    className="group min-w-0 rounded-2xl border border-white/10 bg-[#0d2028] p-4 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-[#102630] sm:p-5"
-                  >
-                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:text-xs">
-                          {item.label}
+
+                        <h3 className="truncate text-sm font-black text-slate-200">
+                          {loan.bookTitle ||
+                            "Untitled Book"}
+                        </h3>
+
+                        <p className="mt-1 text-xs text-slate-600">
+                          Owner:{" "}
+                          {loan.ownerName ||
+                            "Book Owner"}
                         </p>
 
-                        <p className="mt-2 text-2xl font-black text-[#f4efe3] sm:mt-3 sm:text-3xl">
-                          {item.key === "fine"
-                            ? `৳${stats[item.key]}`
-                            : stats[item.key]}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 sm:flex">
+
+                      <div className="rounded-xl border border-white/5 bg-[#0d2028] px-3 py-2">
+
+                        <p className="text-[9px] uppercase tracking-wider text-slate-700">
+                          Due
                         </p>
-                      </div>
 
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#091a21] text-xs font-black text-slate-500 transition group-hover:text-blue-300 sm:h-9 sm:w-9">
-                        {item.icon}
-                      </div>
-                    </div>
-
-                    <p className="mt-2 hidden text-xs leading-5 text-slate-500 sm:mt-3 sm:block">
-                      {item.description}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </section>
-
-            {/* Quick Actions */}
-            <section className="mt-8 sm:mt-10">
-              <div className="mb-4 sm:mb-5">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 sm:text-xs">
-                  Workspace
-                </p>
-
-                <h2 className="mt-1.5 text-xl font-black sm:mt-2 sm:text-2xl">
-                  Quick Actions
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-                {quickActions.map((action) => (
-                  <Link
-                    key={action.href}
-                    href={action.href}
-                    className="group min-w-0 rounded-2xl border border-white/10 bg-[#0d2028] p-4 transition hover:-translate-y-0.5 hover:border-blue-300/20 hover:bg-[#102630] sm:p-5"
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-[#091a21] text-base font-black text-slate-300 transition group-hover:border-blue-300/20 group-hover:text-blue-200 sm:h-11 sm:w-11 sm:text-lg">
-                      {action.icon}
-                    </div>
-
-                    <h3 className="mt-3 truncate text-sm font-black text-white sm:mt-5 sm:text-base">
-                      {action.title}
-                    </h3>
-
-                    <p className="mt-1.5 hidden text-xs leading-5 text-slate-500 sm:mt-2 sm:block">
-                      {action.description}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </section>
-
-            {/* Activity + Account */}
-            <section className="mt-8 grid gap-4 sm:mt-10 sm:gap-5 xl:grid-cols-[1.4fr_0.8fr]">
-              {/* Recent Loans */}
-              <div className="min-w-0 rounded-2xl border border-white/10 bg-[#0d2028] p-4 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 sm:text-xs">
-                      Activity
-                    </p>
-
-                    <h2 className="mt-1.5 truncate text-lg font-black sm:mt-2 sm:text-xl">
-                      Recent Loans
-                    </h2>
-                  </div>
-
-                  <Link
-                    href="/my-loans"
-                    className="shrink-0 text-[10px] font-bold text-blue-300 hover:text-blue-200 sm:text-xs"
-                  >
-                    View all →
-                  </Link>
-                </div>
-
-                <div className="mt-5 space-y-2.5 sm:mt-6 sm:space-y-3">
-                  {loans.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-white/10 bg-[#091a21] px-4 py-7 text-center sm:px-5 sm:py-8">
-                      <p className="text-sm font-bold text-slate-400">
-                        No loan activity yet.
-                      </p>
-
-                      <Link
-                        href="/catalog"
-                        className="mt-3 inline-block text-xs font-bold text-blue-300"
-                      >
-                        Browse the catalog →
-                      </Link>
-                    </div>
-                  ) : (
-                    loans.slice(0, 5).map((loan) => (
-                      <div
-                        key={
-                          loan._id ||
-                          loan.id
-                        }
-                        className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#091a21] px-3 py-3.5 sm:px-4 sm:py-4"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-slate-200 sm:text-sm">
-                            {loan.bookTitle ||
-                              "Book"}
-                          </p>
-
-                          <p className="mt-1 text-[10px] text-slate-500 sm:text-xs">
-                            {loan.status ===
-                            "active"
-                              ? "Active loan"
-                              : "Completed"}{" "}
-                            ·{" "}
-                            {formatDate(
-                              loan.startDate ||
-                                loan.createdAt
-                            )}
-                          </p>
-                        </div>
-
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-black uppercase sm:px-3 sm:text-[10px] ${
-                            loan.status ===
-                            "active"
-                              ? "bg-blue-400/10 text-blue-200"
-                              : loan.status ===
-                                "returned"
-                              ? "bg-emerald-400/10 text-emerald-200"
-                              : "bg-orange-400/10 text-orange-200"
+                        <p
+                          className={`mt-1 text-[11px] font-bold ${
+                            loan.isOverdue
+                              ? "text-red-300"
+                              : "text-slate-300"
                           }`}
                         >
-                          {loan.status ||
-                            "unknown"}
-                        </span>
+                          {formatDate(
+                            loan.dueDate
+                          )}
+                        </p>
+
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
 
-              {/* Account */}
-              <div className="min-w-0 rounded-2xl border border-white/10 bg-[#0d2028] p-4 sm:p-6">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 sm:text-xs">
-                  Account
-                </p>
+                      <div className="rounded-xl border border-white/5 bg-[#0d2028] px-3 py-2">
 
-                <h2 className="mt-1.5 text-lg font-black sm:mt-2 sm:text-xl">
-                  Your Membership
-                </h2>
+                        <p className="text-[9px] uppercase tracking-wider text-slate-700">
+                          Fine
+                        </p>
 
-                <div className="mt-5 rounded-xl border border-white/10 bg-[#091a21] p-4 sm:mt-6 sm:p-5">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e9e1cf] text-base font-black text-[#07141a] sm:h-14 sm:w-14 sm:text-lg">
-                      {(session.user.name ||
-                        "U")
-                        .charAt(0)
-                        .toUpperCase()}
+                        <p className="mt-1 text-[11px] font-bold text-orange-300">
+                          ৳
+                          {loan.totalFine ||
+                            0}
+                        </p>
+
+                      </div>
+
                     </div>
 
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-white sm:text-base">
-                        {session.user.name ||
-                          "BookNest User"}
-                      </p>
-
-                      <p className="mt-1 truncate text-[10px] text-slate-500 sm:text-xs">
-                        {session.user.email}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 border-t border-white/10 pt-4 sm:mt-5">
-                    <div className="flex items-center justify-between gap-3 text-xs">
-                      <span className="text-slate-500">
-                        Account Status
-                      </span>
-
-                      <span className="shrink-0 rounded-full bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold text-emerald-200">
-                        Approved
-                      </span>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between gap-3 text-xs">
-                      <span className="text-slate-500">
-                        Role
-                      </span>
-
-                      <span className="truncate font-bold capitalize text-slate-200">
-                        {session.user.role ||
-                          "user"}
-                      </span>
-                    </div>
                   </div>
                 </div>
+              ))}
 
-                <Link
-                  href="/profile"
-                  className="mt-3 block rounded-xl border border-white/10 bg-[#091a21] px-4 py-3 text-center text-xs font-black text-slate-300 transition hover:border-white/20 hover:text-white sm:mt-4"
-                >
-                  View Profile
-                </Link>
-              </div>
-            </section>
+            {activeLoanItems.length > 5 && (
+              <Link
+                href="/dashboard/my-loans"
+                className="block rounded-xl border border-white/5 bg-[#10242d] py-3 text-center text-xs font-bold text-slate-500 transition hover:bg-[#142d37] hover:text-white"
+              >
+                View{" "}
+                {activeLoanItems.length - 5}{" "}
+                more
+              </Link>
+            )}
 
-            {/* Footer */}
-            <footer className="mt-8 border-t border-white/10 pt-5 sm:mt-10 sm:pt-6">
-              <div className="flex flex-col gap-3 text-[10px] text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
-                <p>
-                  BookNest · Community-powered book
-                  sharing
-                </p>
-
-                <div className="flex flex-wrap gap-x-4 gap-y-2">
-                  <Link
-                    href="/policies"
-                    className="transition hover:text-slate-400"
-                  >
-                    Policies
-                  </Link>
-
-                  <Link
-                    href="/report"
-                    className="transition hover:text-slate-400"
-                  >
-                    Report Issue
-                  </Link>
-
-                  <Link
-                    href="/settings"
-                    className="transition hover:text-slate-400"
-                  >
-                    Settings
-                  </Link>
-                </div>
-              </div>
-            </footer>
           </div>
-        </section>
+        )}
+
       </div>
-    </main>
-  );
-}
 
-function SidebarLink({
-  href,
-  label,
-  icon,
-  active = false,
-}) {
-  return (
-    <Link
-      href={href}
-      className={`flex items-center rounded-xl px-4 py-3 text-sm font-bold transition ${
-        active
-          ? "bg-blue-400/10 text-blue-200"
-          : "text-slate-400 hover:bg-white/5 hover:text-white"
-      }`}
-    >
-      <span className="mr-3 w-4 text-center">
-        {icon}
-      </span>
+      {/* QUICK ACTIONS */}
+      <div className="rounded-3xl border border-white/[0.07] bg-[#0d2028] p-5 shadow-xl shadow-black/10 sm:p-6">
 
-      {label}
-    </Link>
-  );
+        <h2 className="text-xl font-black text-[#f1eee5]">
+          Quick Actions
+        </h2>
+
+        <p className="mt-1 text-xs text-slate-600">
+          Frequently used sections.
+        </p>
+
+        <div className="mt-5 space-y-3">
+
+          <Link
+            href="/catalog"
+            className="group flex items-center gap-4 rounded-2xl border border-white/5 bg-[#091a21] p-4 transition hover:border-blue-400/15 hover:bg-[#0c2029]"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
+              🔎
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-slate-200">
+                Browse Catalog
+              </span>
+
+              <span className="mt-1 block text-[10px] text-slate-600">
+                Find books to borrow
+              </span>
+            </span>
+
+            <span className="text-slate-700 group-hover:text-slate-400">
+              →
+            </span>
+          </Link>
+
+          <Link
+            href="/dashboard/my-loans"
+            className="group flex items-center gap-4 rounded-2xl border border-white/5 bg-[#091a21] p-4 transition hover:border-emerald-400/15 hover:bg-[#0c2029]"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-lg">
+              📚
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-slate-200">
+                My Loans
+              </span>
+
+              <span className="mt-1 block text-[10px] text-slate-600">
+                Manage borrowed books
+              </span>
+            </span>
+
+            <span className="text-slate-700 group-hover:text-slate-400">
+              →
+            </span>
+          </Link>
+
+          <Link
+            href="/dashboard/profile"
+            className="group flex items-center gap-4 rounded-2xl border border-white/5 bg-[#091a21] p-4 transition hover:border-purple-400/15 hover:bg-[#0c2029]"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-lg">
+              👤
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-slate-200">
+                My Profile
+              </span>
+
+              <span className="mt-1 block text-[10px] text-slate-600">
+                View and manage your profile
+              </span>
+            </span>
+
+            <span className="text-slate-700 group-hover:text-slate-400">
+              →
+            </span>
+          </Link>
+
+          <Link
+            href="/notifications"
+            className="group flex items-center gap-4 rounded-2xl border border-white/5 bg-[#091a21] p-4 transition hover:border-orange-400/15 hover:bg-[#0c2029]"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-lg">
+              🔔
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-slate-200">
+                Notifications
+              </span>
+
+              <span className="mt-1 block text-[10px] text-slate-600">
+                View account updates
+              </span>
+            </span>
+
+            <span className="text-slate-700 group-hover:text-slate-400">
+              →
+            </span>
+          </Link>
+
+        </div>
+      </div>
+
+    </section>
+
+    {/* BOTTOM GRID */}
+    <section className="mt-5 grid gap-5 lg:grid-cols-2">
+
+      {/* ACTIVITY */}
+      <div className="rounded-3xl border border-white/[0.07] bg-[#0d2028] p-5 shadow-xl shadow-black/10 sm:p-6">
+
+        <h2 className="text-xl font-black text-[#f1eee5]">
+          Recent Activity
+        </h2>
+
+        <p className="mt-1 text-xs text-slate-600">
+          Your latest library activity.
+        </p>
+
+        {dashboard.activities.length === 0 ? (
+          <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-[#091a21] p-8 text-center">
+            <p className="text-xs text-slate-600">
+              No recent activity yet.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-3">
+            {dashboard.activities.map(
+              (activity, index) => (
+                <ActivityItem
+                  key={`${activity.title}-${index}`}
+                  {...activity}
+                />
+              )
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {/* HELP */}
+      <div className="rounded-3xl border border-white/[0.07] bg-[#0d2028] p-5 shadow-xl shadow-black/10 sm:p-6">
+
+        <h2 className="text-xl font-black text-[#f1eee5]">
+          Need Help?
+        </h2>
+
+        <p className="mt-1 text-xs text-slate-600">
+          Get support or review the platform rules.
+        </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+
+          <Link
+            href="/report-issue"
+            className="rounded-2xl border border-red-400/10 bg-red-500/[0.05] p-5 transition hover:bg-red-500/[0.08]"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-lg">
+              🚨
+            </div>
+
+            <h3 className="mt-4 text-sm font-black text-slate-200">
+              Report Issue
+            </h3>
+
+            <p className="mt-1 text-[10px] leading-5 text-slate-600">
+              Report a problem, user or book.
+            </p>
+          </Link>
+
+          <Link
+            href="/policies"
+            className="rounded-2xl border border-blue-400/10 bg-blue-500/[0.05] p-5 transition hover:bg-blue-500/[0.08]"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
+              📜
+            </div>
+
+            <h3 className="mt-4 text-sm font-black text-slate-200">
+              Policies
+            </h3>
+
+            <p className="mt-1 text-[10px] leading-5 text-slate-600">
+              Read borrowing and platform policies.
+            </p>
+          </Link>
+
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-white/5 bg-[#091a21] p-4">
+
+          <div className="flex items-start gap-3">
+
+            <div className="text-lg">
+              🛡️
+            </div>
+
+            <div>
+
+              <p className="text-xs font-bold text-slate-300">
+                Keep your account secure
+              </p>
+
+              <p className="mt-1 text-[10px] leading-5 text-slate-600">
+                Never share your password or
+                account verification information
+                with anyone.
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <div className="mt-6 pb-4 text-center">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-700">
+        BookNest · Personal Library Dashboard
+      </p>
+    </div>
+
+  </div>
+</main>
+
+
+);
 }
